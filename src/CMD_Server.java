@@ -27,25 +27,24 @@ import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 
-
-
-
-public class CMD_Server implements MouseListener {
+public class CMD_Server extends Thread implements MouseListener {
 	
+	static final String REMOTECMD_SERVER_TITLE = "RemoteCMD_Server"; 
 	static String SERVER_PASSWAORD = "jmpasswd";
 	
 	static int user_counter = 0;
 	
 	static JFrame jframe = new JFrame();
 	static JTextArea jta = new JTextArea("");
-	JScrollPane jsp = new JScrollPane(jta,
-							JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
+	static JScrollPane jsp = new JScrollPane(jta,
+							JScrollPane.VERTICAL_SCROLLBAR_ALWAYS,
 							JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
-	JScrollBar jsb = jsp.getVerticalScrollBar();
+	static JScrollBar jsb = jsp.getVerticalScrollBar();
 	
 	TrayIcon trayicon;
 	SystemTray systemtray;
 	
+	static private Socket socket;
 	static private ServerSocket serverSocket;
 	
 	public CMD_Server() {
@@ -53,6 +52,7 @@ public class CMD_Server implements MouseListener {
 		jta.setBackground(Color.WHITE);
 		jta.setEditable(false);
 		
+		jframe.setTitle(REMOTECMD_SERVER_TITLE);
 		jframe.setSize(1080, 768);
 		jframe.add(jsp);
 		jframe.setVisible(false);
@@ -113,6 +113,20 @@ public class CMD_Server implements MouseListener {
 				
 				@Override
 				public void actionPerformed(ActionEvent e) {
+					if (CMD_Server.socket != null) {
+						try {
+							CMD_Server.socket.close();
+						} catch (IOException e1) {
+						}
+					}
+					
+					if (CMD_ChatServer.socket != null) {
+						try {
+							CMD_ChatServer.socket.close();
+						} catch (IOException e1) {
+						}
+					}
+					
 					System.exit(0);
 				}
 			});
@@ -154,22 +168,23 @@ public class CMD_Server implements MouseListener {
 	public void mouseClicked(MouseEvent e) {
 	}
 	
-	public void start() {
-		Socket socket;
-		
+	@Override
+	public void run() {
 		try {
 			serverSocket = new ServerSocket(7777);
 			
 			jta.append(getTime() + " Server started.\n");
 			
+			new CMD_ChatServer().start();
+			
 			while(true) {
-				socket = serverSocket.accept();
-				ServerReceiver receiver = new ServerReceiver(socket);
+				CMD_Server.socket = serverSocket.accept();
+				ServerReceiver receiver = new ServerReceiver(CMD_Server.socket);
 				receiver.start();
 			}
 		} catch (IOException e) {
 			jta.append(getTime() + " Error: Socket create error!\n"
-					+ "Check if 7777 port in use or close running server"
+					+ "Check if 7777 port in use or close running server "
 					+ "then restart server.");
 		}
 	}
@@ -236,7 +251,7 @@ public class CMD_Server implements MouseListener {
 						if (i == 0) {
 							jta.append(getTime() + "Close client socket!\n");
 							jsb.setValue(jsb.getMaximum());
-							output = "Disconnected from server.";
+							output = "DISCONNECTED";
 							data_out.writeUTF(output);
 							
 							socket.close();
@@ -245,9 +260,9 @@ public class CMD_Server implements MouseListener {
 						
 						output = "Password incorrect!!\n"
 								+ "Will be disconnect from server after "
-								+ i + "more tries...";
+								+ i + " more tries...";
 						data_out.writeUTF(output);
-					} else {					
+					} else {
 						is_password_ok = true;
 						break;
 					}
@@ -258,7 +273,7 @@ public class CMD_Server implements MouseListener {
 					jta.append(getTime() + " Connected users: " + ++user_counter + "\n");
 					jsb.setValue(jsb.getMaximum());
 					
-					data_out.writeUTF("Connected to server!");
+					data_out.writeUTF("CONNECTED");
 				}
 				
 				while (is_password_ok && data_in != null) {
